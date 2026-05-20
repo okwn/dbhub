@@ -16,6 +16,7 @@ import { obfuscateDSNPassword } from "../../utils/dsn-obfuscate.js";
 import { SQLRowLimiter } from "../../utils/sql-row-limiter.js";
 import { parseQueryResults, extractAffectedRows } from "../../utils/multi-statement-result-parser.js";
 import { splitSQLStatements } from "../../utils/sql-parser.js";
+import { quoteIdentifier } from "../../utils/identifier-quoter.js";
 
 /**
  * MySQL DSN Parser
@@ -49,6 +50,7 @@ class MySQLDSNParser implements DSNParser {
         user: url.username,
         password: url.password,
         multipleStatements: true, // Enable native multi-statement support
+        supportBigNumbers: true, // Return BIGINT as string when value exceeds Number.MAX_SAFE_INTEGER
       };
 
       // Handle query parameters
@@ -474,11 +476,13 @@ export class MySQLConnector implements Connector {
         const schemaValue = schema || (await this.getCurrentSchema());
 
         // For full definition - different approaches based on type
+        const quotedSchema = quoteIdentifier(schemaValue, "mysql");
+        const quotedProcName = quoteIdentifier(procedureName, "mysql");
         if (procedure.procedure_type === "procedure") {
           // Try to get the definition from SHOW CREATE PROCEDURE
           try {
             const [defRows] = (await this.pool.query(`
-              SHOW CREATE PROCEDURE ${schemaValue}.${procedureName}
+              SHOW CREATE PROCEDURE ${quotedSchema}.${quotedProcName}
             `)) as [any[], any];
 
             if (defRows && defRows.length > 0) {
@@ -491,7 +495,7 @@ export class MySQLConnector implements Connector {
           // Try to get the definition for functions
           try {
             const [defRows] = (await this.pool.query(`
-              SHOW CREATE FUNCTION ${schemaValue}.${procedureName}
+              SHOW CREATE FUNCTION ${quotedSchema}.${quotedProcName}
             `)) as [any[], any];
 
             if (defRows && defRows.length > 0) {

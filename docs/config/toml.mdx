@@ -11,6 +11,7 @@ TOML configuration enables:
 - **Per-source settings**: Configure timeouts, SSL, SSH tunnels, and lazy connections individually per database
 - **Per-tool settings**: Apply different restrictions (readonly, max_rows) per tool
 - **Custom tools**: Define reusable, parameterized SQL operations as MCP tools
+- **Environment variable interpolation**: Use `${VAR}` syntax to avoid hardcoding credentials
 - **Hot reload**: Automatically detect config changes and reload connections without restarting
 
 ## Hot Reload
@@ -33,6 +34,41 @@ When using TOML configuration, DBHub automatically watches `dbhub.toml` for chan
 **STDIO transport limitation:** In STDIO mode (the default for Claude Desktop, Cursor, etc.), hot reload updates the underlying database connections and tool settings, but clients won't see newly added or removed tools until a full server restart. This is because STDIO clients discover tools once at startup.
 
 HTTP transport (`--transport http`) creates a fresh server per request, so all changes — including added/removed tools — take effect immediately.
+</Note>
+
+## Environment Variable Interpolation
+
+Use `${VAR_NAME}` syntax to reference environment variables in any string value. Variables are resolved from the process environment at config load time.
+
+This lets teams share a single `dbhub.toml` without hardcoding credentials:
+
+```toml dbhub.toml
+[[sources]]
+id = "production"
+dsn = "postgres://readonly_user:${DB_PASSWORD}@db.example.com:5432/mydb"
+
+[[sources]]
+id = "staging"
+type = "mysql"
+host = "${STAGING_HOST}"
+database = "myapp"
+user = "root"
+password = "${STAGING_PASSWORD}"
+ssh_host = "bastion.example.com"
+ssh_password = "${SSH_PASSWORD}"
+```
+
+```bash
+# Set env vars, then start DBHub
+export DB_PASSWORD="s3cret"
+export STAGING_HOST="staging.example.com"
+export STAGING_PASSWORD="staging_pass"
+export SSH_PASSWORD="ssh_pass"
+npx @bytebase/dbhub@latest --config dbhub.toml
+```
+
+<Note>
+Unresolved variables (where the environment variable is not set) are left as the literal `${VAR_NAME}` string. No error is thrown for missing variables.
 </Note>
 
 ## Configuration Structure
@@ -90,6 +126,19 @@ Sources define database connections. Each source represents a database that DBHu
   ```toml
   [[sources]]
   id = "production"
+  ```
+</ParamField>
+
+### description
+
+<ParamField path="description" type="string">
+  Human-readable description of this data source. Helps AI models understand the purpose and contents of each database when multiple sources are configured.
+
+  ```toml
+  [[sources]]
+  id = "production"
+  description = "Production PostgreSQL database containing customer and order data"
+  dsn = "postgres://user:pass@localhost:5432/mydb"
   ```
 </ParamField>
 
@@ -234,18 +283,60 @@ Sources define database connections. Each source represents a database that DBHu
   **Options:**
   - `disable` - No SSL/TLS encryption. Data is transmitted in plaintext.
   - `require` - SSL/TLS encryption enabled, but server certificate is not verified.
+  - `verify-ca` - SSL with CA certificate verification (no hostname check). **PostgreSQL only.**
+  - `verify-full` - SSL with CA certificate and hostname verification. **PostgreSQL only.**
 
-  Supported databases: PostgreSQL, MySQL, MariaDB, SQL Server (not applicable to SQLite).
+  Supported databases: PostgreSQL, MySQL, MariaDB, SQL Server (not applicable to SQLite). The `verify-ca` and `verify-full` modes are only supported for PostgreSQL.
 
   ```toml
+  # Basic SSL (all network databases)
   [[sources]]
   id = "production"
   dsn = "postgres://user:pass@localhost:5432/mydb"
   sslmode = "require"
+
+  # Certificate verification (PostgreSQL only)
+  [[sources]]
+  id = "rds_postgres"
+  type = "postgres"
+  host = "mydb.abc123.eu-west-1.rds.amazonaws.com"
+  port = 5432
+  database = "myapp"
+  user = "app_user"
+  password = "secure_password"
+  sslmode = "verify-ca"
+  sslrootcert = "~/.ssl/rds-combined-ca-bundle.pem"
   ```
 
   <Tip>
-  Can also be set via DSN query parameter: `?sslmode=require`
+  Can also be set via DSN query parameter: `?sslmode=require` or `?sslmode=verify-ca&sslrootcert=/path/to/ca.pem`
+  </Tip>
+</ParamField>
+
+### sslrootcert
+
+<ParamField path="sslrootcert" type="string">
+  Path to the CA certificate file for SSL certificate verification. Required when using `sslmode=verify-ca` or `sslmode=verify-full`.
+
+  Supports `~/` path expansion.
+
+  **PostgreSQL only.**
+
+  ```toml
+  [[sources]]
+  id = "rds_postgres"
+  type = "postgres"
+  host = "mydb.abc123.eu-west-1.rds.amazonaws.com"
+  port = 5432
+  database = "myapp"
+  user = "app_user"
+  password = "secure_password"
+  sslmode = "verify-full"
+  sslrootcert = "~/.ssl/rds-combined-ca-bundle.pem"
+  ```
+
+  <Tip>
+  Can also be set via DSN query parameter: `?sslmode=verify-full&sslrootcert=/path/to/ca.pem`
   </Tip>
 </ParamField>
 
@@ -339,10 +430,12 @@ Sources define database connections. Each source represents a database that DBHu
   ssh_host = "bastion.example.com"
   ssh_port = 22
   ssh_user = "ubuntu"
-  ssh_key = "~/.ssh/id_rsa"
+  ssh_key = "~/.ssh/id_rsa"  # File path or base64-encoded key
   ssh_passphrase = "my_key_passphrase"  # Optional
   ssh_proxy_jump = "jump1.example.com,admin@jump2.internal:2222"
   ```
+
+  `ssh_key` accepts either a file path or a base64-encoded private key. DBHub automatically detects the format.
 
   See [Command-Line Options - SSH Tunnel](/config/command-line#ssh-tunnel-options) for complete documentation and examples.
 </ParamField>
@@ -611,11 +704,13 @@ default = 10
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | ✅ | Unique source identifier |
+| `description` | string | ❌ | Human-readable description of the data source |
 | `dsn` | string | ✅ | Database connection string |
 | `lazy` | boolean | ❌ | Defer connection until first query (default: `false`) |
 | `connection_timeout` | number | ❌ | Connection timeout (seconds) |
 | `query_timeout` | number | ❌ | Query timeout (seconds) |
-| `sslmode` | string | ❌ | SSL mode: `disable`, `require` |
+| `sslmode` | string | ❌ | SSL mode: `disable`, `require`, `verify-ca`, `verify-full` |
+| `sslrootcert` | string | ❌ | CA certificate path (PostgreSQL only, requires `verify-ca` or `verify-full`) |
 | `instanceName` | string | ❌ | SQL Server named instance |
 | `authentication` | string | ❌ | SQL Server auth method |
 | `domain` | string | ❌ | Windows domain (NTLM) |
@@ -624,7 +719,7 @@ default = 10
 | `ssh_port` | number | ❌ | SSH server port (default: 22) |
 | `ssh_user` | string | ❌ | SSH username |
 | `ssh_password` | string | ❌ | SSH password |
-| `ssh_key` | string | ❌ | SSH private key path |
+| `ssh_key` | string | ❌ | SSH private key path or base64-encoded key |
 | `ssh_passphrase` | string | ❌ | SSH key passphrase |
 | `ssh_proxy_jump` | string | ❌ | ProxyJump hosts |
 

@@ -5,6 +5,7 @@ import toml from "@iarna/toml";
 import type { SourceConfig, TomlConfig, ToolConfig } from "../types/config.js";
 import { parseCommandLineArgs } from "./env.js";
 import { parseConnectionInfoFromDSN, getDefaultPortForType } from "../utils/dsn-obfuscate.js";
+import { SafeURL } from "../utils/safe-url.js";
 import { BUILTIN_TOOLS, BUILTIN_TOOL_EXECUTE_SQL, BUILTIN_TOOL_SEARCH_OBJECTS } from "../tools/builtin-tools.js";
 
 /**
@@ -19,7 +20,10 @@ export function loadTomlConfig(): { sources: SourceConfig[]; tools?: TomlConfig[
 
   try {
     const fileContent = fs.readFileSync(configPath, "utf-8");
-    const parsedToml = toml.parse(fileContent) as unknown as TomlConfig;
+    const rawToml = toml.parse(fileContent) as unknown as TomlConfig;
+
+    // Interpolate environment variables (e.g., ${DB_PASSWORD}) in all string values
+    const parsedToml = interpolateEnvVars(rawToml) as TomlConfig;
 
     // Basic structure check before processing
     if (!Array.isArray(parsedToml.sources)) {
@@ -329,11 +333,53 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
       );
     }
 
-    const validSslModes = ["disable", "require"];
+    const validSslModes = ["disable", "require", "verify-ca", "verify-full"];
     if (!validSslModes.includes(source.sslmode)) {
       throw new Error(
         `Configuration file ${configPath}: source '${source.id}' has invalid sslmode '${source.sslmode}'. ` +
           `Valid values: ${validSslModes.join(", ")}`
+      );
+    }
+
+    if (
+      (source.sslmode === "verify-ca" || source.sslmode === "verify-full") &&
+      source.type !== "postgres"
+    ) {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' has sslmode '${source.sslmode}' which is only supported for PostgreSQL. ` +
+          `Valid values for ${source.type}: disable, require`
+      );
+    }
+  }
+
+  // Validate sslrootcert if provided
+  if (source.sslrootcert !== undefined) {
+    if (source.sslmode !== "verify-ca" && source.sslmode !== "verify-full") {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' has sslrootcert but sslmode is '${source.sslmode ?? "not set"}'. ` +
+          `sslrootcert requires sslmode 'verify-ca' or 'verify-full'`
+      );
+    }
+
+    const expandedPath = expandHomeDir(source.sslrootcert);
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(expandedPath);
+    } catch {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' sslrootcert file not found or not accessible: '${expandedPath}'`
+      );
+    }
+    if (!stats.isFile()) {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' sslrootcert path is not a regular file: '${expandedPath}'`
+      );
+    }
+    try {
+      fs.accessSync(expandedPath, fs.constants.R_OK);
+    } catch {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' sslrootcert file is not readable: '${expandedPath}'`
       );
     }
   }
@@ -434,6 +480,11 @@ function processSourceConfigs(
       processed.ssh_key = expandHomeDir(processed.ssh_key);
     }
 
+    // Expand ~ in sslrootcert path
+    if (processed.sslrootcert) {
+      processed.sslrootcert = expandHomeDir(processed.sslrootcert);
+    }
+
     // Expand ~ in SQLite database path (if relative)
     if (processed.type === "sqlite" && processed.database) {
       processed.database = expandHomeDir(processed.database);
@@ -466,10 +517,50 @@ function processSourceConfigs(
           processed.user = connectionInfo.user;
         }
       }
+
+      try {
+        const url = new SafeURL(processed.dsn);
+        const dsnSslmode = url.getSearchParam("sslmode");
+        if (!processed.sslmode && dsnSslmode) {
+          processed.sslmode = dsnSslmode as SourceConfig["sslmode"];
+        }
+        const dsnSslrootcert = url.getSearchParam("sslrootcert");
+        if (!processed.sslrootcert && dsnSslrootcert) {
+          processed.sslrootcert = dsnSslrootcert;
+        }
+      } catch {
+        // DSN parsing for query params is best-effort; connector will handle errors
+      }
     }
 
     return processed;
   });
+}
+
+/**
+ * Interpolate environment variables in configuration values.
+ * Supports ${VAR_NAME} syntax, resolved from process.env at load time.
+ * Unresolved variables are left as-is (no error thrown).
+ */
+const ENV_VAR_PATTERN = /\$\{([^}]+)\}/g;
+export function interpolateEnvVars(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(ENV_VAR_PATTERN, (match, varName) => {
+      const envValue = process.env[varName];
+      return envValue !== undefined ? envValue : match;
+    });
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => interpolateEnvVars(item));
+  }
+  if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+      result[key] = interpolateEnvVars(val);
+    }
+    return result;
+  }
+  return value;
 }
 
 /**
@@ -565,6 +656,15 @@ export function buildDSNFromSource(source: SourceConfig): string {
   // Add sslmode for network databases (not sqlite)
   if (source.sslmode && source.type !== "sqlite") {
     queryParams.push(`sslmode=${source.sslmode}`);
+  }
+
+  if (
+    source.sslrootcert &&
+    source.type === "postgres" &&
+    (source.sslmode === "verify-ca" || source.sslmode === "verify-full")
+  ) {
+    const expandedCertPath = expandHomeDir(source.sslrootcert);
+    queryParams.push(`sslrootcert=${encodeURIComponent(expandedCertPath)}`);
   }
 
   // Append query string if any params exist

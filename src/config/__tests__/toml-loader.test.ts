@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadTomlConfig, buildDSNFromSource } from '../toml-loader.js';
+import { loadTomlConfig, buildDSNFromSource, interpolateEnvVars } from '../toml-loader.js';
 import type { SourceConfig } from '../../types/config.js';
 import fs from 'fs';
 import path from 'path';
@@ -509,6 +509,172 @@ dsn = "postgres://user:pass@localhost:5432/testdb"
         expect(result).toBeTruthy();
         expect(result?.sources[0].sslmode).toBeUndefined();
       });
+
+      it('should accept sslmode = "verify-ca" for PostgreSQL', () => {
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-ca"
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        const result = loadTomlConfig();
+
+        expect(result).toBeTruthy();
+        expect(result?.sources[0].sslmode).toBe('verify-ca');
+      });
+
+      it('should accept sslmode = "verify-full" for PostgreSQL', () => {
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-full"
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        const result = loadTomlConfig();
+
+        expect(result).toBeTruthy();
+        expect(result?.sources[0].sslmode).toBe('verify-full');
+      });
+
+      it('should reject sslmode = "verify-ca" for MySQL', () => {
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "mysql"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-ca"
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        expect(() => loadTomlConfig()).toThrow("sslmode 'verify-ca' which is only supported for PostgreSQL");
+      });
+
+      it('should reject sslmode = "verify-full" for MariaDB', () => {
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "mariadb"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-full"
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        expect(() => loadTomlConfig()).toThrow("sslmode 'verify-full' which is only supported for PostgreSQL");
+      });
+
+      it('should reject sslmode = "verify-ca" for SQL Server', () => {
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "sqlserver"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-ca"
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        expect(() => loadTomlConfig()).toThrow("sslmode 'verify-ca' which is only supported for PostgreSQL");
+      });
+
+      it('should reject sslrootcert when sslmode is "require"', () => {
+        const certPath = path.join(tempDir, 'ca.pem');
+        fs.writeFileSync(certPath, 'cert-content');
+
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "require"
+sslrootcert = '${certPath}'
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        expect(() => loadTomlConfig()).toThrow("sslrootcert requires sslmode 'verify-ca' or 'verify-full'");
+      });
+
+      it('should reject sslrootcert when sslmode is not set', () => {
+        const certPath = path.join(tempDir, 'ca.pem');
+        fs.writeFileSync(certPath, 'cert-content');
+
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslrootcert = '${certPath}'
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        expect(() => loadTomlConfig()).toThrow("sslrootcert requires sslmode 'verify-ca' or 'verify-full'");
+      });
+
+      it('should accept sslrootcert with sslmode = "verify-ca" when file exists', () => {
+        const certPath = path.join(tempDir, 'ca.pem');
+        fs.writeFileSync(certPath, 'cert-content');
+
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-ca"
+sslrootcert = '${certPath}'
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        const result = loadTomlConfig();
+
+        expect(result).toBeTruthy();
+        expect(result?.sources[0].sslmode).toBe('verify-ca');
+        expect(result?.sources[0].sslrootcert).toBe(certPath);
+      });
+
+      it('should reject sslrootcert when file does not exist', () => {
+        const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "localhost"
+database = "testdb"
+user = "user"
+password = "pass"
+sslmode = "verify-ca"
+sslrootcert = "/nonexistent/ca.pem"
+`;
+        fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+        expect(() => loadTomlConfig()).toThrow("sslrootcert file not found or not accessible: '/nonexistent/ca.pem'");
+      });
     });
 
     describe('SQL Server authentication validation', () => {
@@ -976,6 +1142,41 @@ dsn = "postgres://user:pass@localhost:5432/testdb"
       const dsn = buildDSNFromSource(source);
 
       expect(dsn).toBe('postgres://user:pass@localhost:5432/testdb?sslmode=require');
+    });
+
+    it('should build PostgreSQL DSN with verify-ca and sslrootcert', () => {
+      const source: SourceConfig = {
+        id: 'pg_verify',
+        type: 'postgres',
+        host: 'rds.amazonaws.com',
+        port: 5432,
+        database: 'testdb',
+        user: 'user',
+        password: 'pass',
+        sslmode: 'verify-ca',
+        sslrootcert: '/path/to/ca-bundle.pem'
+      };
+
+      const dsn = buildDSNFromSource(source);
+
+      expect(dsn).toBe('postgres://user:pass@rds.amazonaws.com:5432/testdb?sslmode=verify-ca&sslrootcert=%2Fpath%2Fto%2Fca-bundle.pem');
+    });
+
+    it('should build PostgreSQL DSN with verify-full without sslrootcert', () => {
+      const source: SourceConfig = {
+        id: 'pg_verify_full',
+        type: 'postgres',
+        host: 'localhost',
+        port: 5432,
+        database: 'testdb',
+        user: 'user',
+        password: 'pass',
+        sslmode: 'verify-full'
+      };
+
+      const dsn = buildDSNFromSource(source);
+
+      expect(dsn).toBe('postgres://user:pass@localhost:5432/testdb?sslmode=verify-full');
     });
 
     it('should build MySQL DSN with sslmode', () => {
@@ -1501,6 +1702,133 @@ max_rows = 0
       fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
 
       expect(() => loadTomlConfig()).toThrow('invalid max_rows');
+    });
+  });
+
+  describe('environment variable interpolation', () => {
+    const originalEnv = { ...process.env };
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it('should interpolate ${VAR} in DSN strings', () => {
+      process.env.TEST_DB_PASSWORD = 's3cret';
+      const tomlContent = `
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:\${TEST_DB_PASSWORD}@localhost:5432/testdb"
+`;
+      fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+      const result = loadTomlConfig();
+
+      expect(result?.sources[0].dsn).toBe('postgres://user:s3cret@localhost:5432/testdb');
+    });
+
+    it('should interpolate multiple variables in a single string', () => {
+      process.env.TEST_DB_USER = 'admin';
+      process.env.TEST_DB_PASSWORD = 'p@ss';
+      const tomlContent = `
+[[sources]]
+id = "test_db"
+dsn = "postgres://\${TEST_DB_USER}:\${TEST_DB_PASSWORD}@localhost:5432/testdb"
+`;
+      fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+      const result = loadTomlConfig();
+
+      expect(result?.sources[0].dsn).toBe('postgres://admin:p@ss@localhost:5432/testdb');
+    });
+
+    it('should interpolate variables in connection parameter fields', () => {
+      process.env.TEST_DB_HOST = 'db.example.com';
+      process.env.TEST_DB_PASSWORD = 'secret';
+      const tomlContent = `
+[[sources]]
+id = "test_db"
+type = "postgres"
+host = "\${TEST_DB_HOST}"
+database = "mydb"
+user = "admin"
+password = "\${TEST_DB_PASSWORD}"
+`;
+      fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+      const result = loadTomlConfig();
+
+      expect(result?.sources[0].host).toBe('db.example.com');
+      expect(result?.sources[0].password).toBe('secret');
+    });
+
+    it('should interpolate variables in SSH fields', () => {
+      process.env.TEST_SSH_PASSWORD = 'sshpass';
+      const tomlContent = `
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:pass@localhost:5432/testdb"
+ssh_host = "bastion.example.com"
+ssh_user = "tunnel"
+ssh_password = "\${TEST_SSH_PASSWORD}"
+`;
+      fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+      const result = loadTomlConfig();
+
+      expect(result?.sources[0].ssh_password).toBe('sshpass');
+    });
+
+    it('should leave unresolved variables as-is', () => {
+      delete process.env.NONEXISTENT_VAR;
+      const tomlContent = `
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:\${NONEXISTENT_VAR}@localhost:5432/testdb"
+`;
+      fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+      const result = loadTomlConfig();
+
+      expect(result?.sources[0].dsn).toBe('postgres://user:${NONEXISTENT_VAR}@localhost:5432/testdb');
+    });
+
+    it('should not affect non-string values', () => {
+      const result = interpolateEnvVars({ port: 5432, enabled: true, items: [1, 2] });
+      expect(result).toEqual({ port: 5432, enabled: true, items: [1, 2] });
+    });
+
+    it('should preserve Date objects from TOML datetime fields', () => {
+      const date = new Date('2024-01-01T00:00:00Z');
+      const result = interpolateEnvVars({ name: 'test', created: date });
+      expect((result as any).created).toBeInstanceOf(Date);
+      expect((result as any).created.toISOString()).toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    it('should interpolate variables in custom tool statements', () => {
+      process.env.TEST_SCHEMA = 'production';
+      const tomlContent = `
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:pass@localhost:5432/testdb"
+
+[[tools]]
+name = "my_tool"
+source = "test_db"
+description = "Query \${TEST_SCHEMA} schema"
+statement = "SELECT * FROM \${TEST_SCHEMA}.users"
+`;
+      fs.writeFileSync(path.join(tempDir, 'dbhub.toml'), tomlContent);
+
+      const result = loadTomlConfig();
+
+      expect(result?.tools?.[0]).toMatchObject({
+        description: 'Query production schema',
+        statement: 'SELECT * FROM production.users',
+      });
     });
   });
 });
