@@ -1,0 +1,439 @@
+---
+title: "MCP Client Integration"
+---
+
+Connect to DBHub from your own applications using the Model Context Protocol (MCP) SDK. DBHub exposes `execute_sql` and `search_objects` as MCP tools that you can call from any MCP-compatible client.
+
+## TypeScript
+
+### Installation
+
+```bash
+npm install @modelcontextprotocol/sdk
+```
+
+### Connect to DBHub
+
+**Stdio transport (local server):**
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+const transport = new StdioTransport({
+  command: "npx",
+  args: ["@bytebase/dbhub@latest", "--dsn", "postgres://user:pass@localhost:5432/mydb"],
+});
+
+const client = new Client(
+  { name: "my-app", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+await client.connect(transport);
+```
+
+**HTTP transport (remote server):**
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPTransport } from "@modelcontextprotocol/sdk/client/streamable-http.js";
+
+const transport = new StreamableHTTPTransport({
+  baseUrl: "http://localhost:8080/mcp",
+});
+
+const client = new Client(
+  { name: "my-app", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+await client.connect(transport);
+```
+
+### Call execute_sql
+
+```typescript
+// List active users
+const result = await client.callTool({
+  name: "execute_sql",
+  arguments: {
+    sql: "SELECT id, name, email FROM users WHERE status = 'active' LIMIT 10"
+  }
+});
+
+console.log(result.content[0].text);
+// {"success":true,"rows":[...],"count":5,"source_id":"default"}
+```
+
+**Multiple statements:**
+
+```typescript
+const result = await client.callTool({
+  name: "execute_sql",
+  arguments: {
+    sql: `
+      INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');
+      INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com');
+      SELECT * FROM users WHERE email IN ('alice@example.com', 'bob@example.com');
+    `
+  }
+});
+```
+
+**Transaction:**
+
+```typescript
+const result = await client.callTool({
+  name: "execute_sql",
+  arguments: {
+    sql: `
+      BEGIN;
+      UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+      UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+      COMMIT;
+    `
+  }
+});
+```
+
+### Call search_objects
+
+```typescript
+// Find user tables
+const result = await client.callTool({
+  name: "search_objects",
+  arguments: {
+    object_type: "table",
+    pattern: "user%",
+    detail_level: "names"
+  }
+});
+
+console.log(result.content[0].text);
+// {"count":3,"results":[{"name":"users",...},...]}
+```
+
+**Get full table structure:**
+
+```typescript
+const result = await client.callTool({
+  name: "search_objects",
+  arguments: {
+    object_type: "table",
+    pattern: "users",
+    schema: "public",
+    detail_level: "full"
+  }
+});
+
+// Returns columns, indexes, comments, and row count
+```
+
+**List all columns with IDs:**
+
+```typescript
+const result = await client.callTool({
+  name: "search_objects",
+  arguments: {
+    object_type: "column",
+    pattern: "%_id",
+    schema: "public",
+    detail_level: "summary"
+  }
+});
+```
+
+### Multi-Database Configuration
+
+**TOML config (`dbhub.toml`):**
+
+```toml
+[[sources]]
+id = "prod"
+dsn = "postgres://user:pass@prod-host:5432/production"
+
+[[sources]]
+id = "staging"
+dsn = "mysql://user:pass@staging-host:3306/staging"
+```
+
+**Access specific database:**
+
+```typescript
+// Tool names include the source ID suffix
+const prodResult = await client.callTool({
+  name: "execute_sql_prod",  // or "execute_sql" for default
+  arguments: { sql: "SELECT 1" }
+});
+
+const stagingResult = await client.callTool({
+  name: "execute_sql_staging",
+  arguments: { sql: "SELECT 1" }
+});
+```
+
+### Error Handling
+
+```typescript
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
+
+try {
+  const result = await client.callTool({
+    name: "execute_sql",
+    arguments: { sql: "INVALID SQL" }
+  });
+  
+  // Parse response
+  const data = JSON.parse(result.content[0].text);
+  if (!data.success) {
+    console.error("SQL error:", data.error);
+  }
+} catch (error) {
+  if (error instanceof McpError) {
+    console.error("MCP error:", error.message);
+  }
+}
+```
+
+---
+
+## Python
+
+### Installation
+
+```bash
+pip install mcp
+```
+
+### Connect to DBHub
+
+**Stdio transport (local server):**
+
+```python
+from mcp import ClientSession, StdioTransport
+
+async def main():
+    transport = StdioTransport(
+        command="npx",
+        args=["@bytebase/dbhub@latest", "--dsn", "postgres://user:pass@localhost:5432/mydb"]
+    )
+    
+    async with ClientSession(transport) as session:
+        await session.initialize()
+        
+        # Call tools here
+```
+
+**HTTP transport (remote server):**
+
+```python
+from mcp import ClientSession, StreamableHTTPTransport
+
+async def main():
+    transport = StreamableHTTPTransport(
+        url="http://localhost:8080/mcp"
+    )
+    
+    async with ClientSession(transport) as session:
+        await session.initialize()
+        
+        # Call tools here
+```
+
+### Call execute_sql
+
+```python
+async with ClientSession(transport) as session:
+    await session.initialize()
+    
+    # List active users
+    result = await session.call_tool(
+        "execute_sql",
+        arguments={
+            "sql": "SELECT id, name, email FROM users WHERE status = 'active' LIMIT 10"
+        }
+    )
+    
+    print(result.content[0].text)
+    # {"success":true,"rows":[...],"count":5,"source_id":"default"}
+```
+
+**Multiple statements:**
+
+```python
+result = await session.call_tool(
+    "execute_sql",
+    arguments={
+        "sql": """
+            INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');
+            INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com');
+            SELECT * FROM users WHERE email IN ('alice@example.com', 'bob@example.com');
+        """
+    }
+)
+```
+
+**Transaction:**
+
+```python
+result = await session.call_tool(
+    "execute_sql",
+    arguments={
+        "sql": """
+            BEGIN;
+            UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+            UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+            COMMIT;
+        """
+    }
+)
+```
+
+### Call search_objects
+
+```python
+# Find user tables
+result = await session.call_tool(
+    "search_objects",
+    arguments={
+        "object_type": "table",
+        "pattern": "user%",
+        "detail_level": "names"
+    }
+)
+
+data = json.loads(result.content[0].text)
+print(f"Found {data['count']} tables")
+```
+
+**Get full table structure:**
+
+```python
+result = await session.call_tool(
+    "search_objects",
+    arguments={
+        "object_type": "table",
+        "pattern": "users",
+        "schema": "public",
+        "detail_level": "full"
+    }
+)
+
+# Returns columns, indexes, comments, and row count
+```
+
+**List columns matching pattern:**
+
+```python
+result = await session.call_tool(
+    "search_objects",
+    arguments={
+        "object_type": "column",
+        "pattern": "%_id",
+        "schema": "public",
+        "detail_level": "summary"
+    }
+)
+```
+
+### Multi-Database Configuration
+
+**TOML config (`dbhub.toml`):**
+
+```toml
+[[sources]]
+id = "prod"
+dsn = "postgres://user:pass@prod-host:5432/production"
+
+[[sources]]
+id = "staging"
+dsn = "mysql://user:pass@staging-host:3306/staging"
+```
+
+**Access specific database:**
+
+```python
+# Tool names include the source ID suffix
+prod_result = await session.call_tool(
+    "execute_sql_prod",  # or "execute_sql" for default
+    arguments={"sql": "SELECT 1"}
+)
+
+staging_result = await session.call_tool(
+    "execute_sql_staging",
+    arguments={"sql": "SELECT 1"}
+)
+```
+
+### Error Handling
+
+```python
+from mcp import McpError
+
+try:
+    result = await session.call_tool(
+        "execute_sql",
+        arguments={"sql": "INVALID SQL"}
+    )
+    
+    data = json.loads(result.content[0].text)
+    if not data.get("success"):
+        print(f"SQL error: {data.get('error')}")
+        
+except McpError as e:
+    print(f"MCP error: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+---
+
+## Response Format
+
+All tool responses follow a consistent JSON structure:
+
+**Success:**
+
+```json
+{
+  "success": true,
+  "rows": [
+    { "id": 1, "name": "Alice", "email": "alice@example.com" }
+  ],
+  "count": 1,
+  "source_id": "default"
+}
+```
+
+**Error:**
+
+```json
+{
+  "success": false,
+  "error": "Relation 'users' does not exist",
+  "code": "EXECUTION_ERROR"
+}
+```
+
+---
+
+## Quick Reference
+
+| Task | TypeScript | Python |
+|------|------------|--------|
+| Import | `import { Client } from "@modelcontextprotocol/sdk/client/index.js"` | `from mcp import ClientSession` |
+| Connect | `new Client(...).connect(transport)` | `async with ClientSession(transport) as session:` |
+| Call tool | `client.callTool({ name, arguments })` | `session.call_tool(name, arguments)` |
+| Execute SQL | `execute_sql` | `execute_sql` |
+| Search objects | `search_objects` | `search_objects` |
+| Multi-db tool | `execute_sql_{source_id}` | `execute_sql_{source_id}` |
+
+<CardGroup cols={2}>
+  <Card title="execute_sql Reference" icon="play" href="/tools/execute-sql">
+    Full documentation for SQL execution tool
+  </Card>
+  <Card title="search_objects Reference" icon="magnifying-glass" href="/tools/search-objects">
+    Full documentation for database exploration tool
+  </Card>
+</CardGroup>
