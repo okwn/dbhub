@@ -1,0 +1,139 @@
+---
+title: "Server Configuration Reference"
+---
+
+# Server Configuration Reference
+
+This page documents all environment variables and CLI flags accepted by DBHub.
+
+## Quick Reference
+
+| Variable | Flag | Type | Default | Description |
+|---|---|---|---|---|
+| `DSN` | `--dsn` | string | — | Full database connection string |
+| `DB_TYPE` | `--db-type` | string | — | Database type: postgres, mysql, mariadb, sqlserver, sqlite |
+| `DB_HOST` | `--db-host` | string | — | Database hostname |
+| `DB_PORT` | `--db-port` | number | — | Database port |
+| `DB_USER` | `--db-user` | string | — | Database username |
+| `DB_PASSWORD` | `--db-password` | string | — | Database password |
+| `DB_NAME` | `--db-name` | string | — | Database name or SQLite file path |
+| `TRANSPORT` | `--transport` | string | `stdio` | Transport mode: stdio or http |
+| `PORT` | `--port` | number | `8080` | HTTP server port |
+| `ID` | `--id` | string | — | Instance identifier for tool names |
+| `SSH_*` | `--ssh-*` | — | — | SSH tunnel variables (see below) |
+
+## Environment Variables
+
+### Database Connection
+
+#### `DSN`
+
+Full connection string in RFC-3986 format:
+
+```
+postgres://user:password@host:5432/database?sslmode=disable
+mysql://user:password@host:3306/database?sslmode=disable
+sqlite:///path/to/database.db
+sqlite:///:memory:
+sqlserver://user:password@host:1433/database?sslmode=disable
+```
+
+When `DSN` is set, individual `DB_TYPE`, `DB_HOST`, etc. are ignored. SSL modes: `disable`, `require`, `verify-ca`, `verify-full` (PostgreSQL only).
+
+#### `DB_TYPE`
+
+Database type. Accepted values: `postgres`, `mysql`, `mariadb`, `sqlserver`, `sqlite`.
+
+#### `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+
+Individual connection parameters. Use when `DSN` is not set. `DB_NAME` for SQLite is the file path.
+
+### Transport
+
+#### `TRANSPORT`
+
+Communication transport. Options:
+
+- `stdio` (default) — for Claude Desktop, Cursor, and other stdio-based MCP clients
+- `http` — for HTTP clients connecting to `/mcp` endpoint
+
+#### `PORT`
+
+HTTP server port. Only relevant when `TRANSPORT=http`. Default: `8080`.
+
+### Instance Identification
+
+#### `ID`
+
+Optional identifier for multi-database setups. When set, all tool names are prefixed with `{id}_` (e.g., `prod_postgres_search_objects`). Allows routing queries to specific databases in multi-source configurations.
+
+### SSH Tunnel
+
+#### `SSH_HOST`, `SSH_PORT`, `SSH_USER`
+
+SSH tunnel connection parameters. `SSH_PORT` defaults to `22`.
+
+#### `SSH_PASSWORD`, `SSH_KEY`, `SSH_PASSPHRASE`
+
+SSH authentication. Exactly one of `SSH_PASSWORD` or `SSH_KEY` must be set. `SSH_PASSPHRASE` is optional, only required if the private key is encrypted.
+
+### Example: Full Environment Setup
+
+```bash
+# Single PostgreSQL database
+DSN=postgres://user:pass@localhost:5432/mydb
+
+# Or individual parameters
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=user
+DB_PASSWORD=pass
+DB_NAME=mydb
+
+# With SSH tunnel
+SSH_HOST=ssh.example.com
+SSH_USER=跳板
+SSH_KEY=/home/user/.ssh/jump.pem
+DB_TYPE=postgres
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=mydb
+
+# HTTP transport for direct HTTP clients
+TRANSPORT=http
+PORT=8080
+```
+
+## CLI Flags
+
+```bash
+# STDIO transport (default — for Claude Desktop, Cursor)
+dbhub
+dbhub --dsn postgres://user:pass@localhost:5432/mydb
+dbhub --demo                    # use bundled SQLite sample database
+
+# HTTP transport
+dbhub --transport http --port 8080
+
+# Multi-database via TOML (recommended for complex setups)
+dbhub --config dbhub.toml
+```
+
+Run `dbhub --help` for the full flag reference.
+
+## Configuration Priority
+
+DBHub resolves configuration in this order (highest wins):
+
+1. **Command-line flags** (highest)
+2. **TOML configuration file** (`--config` or `dbhub.toml` in cwd)
+3. **Environment variables**
+4. **`.env` files** (`.env.local` in dev, `.env` in prod)
+5. **Defaults** (lowest)
+
+## See Also
+
+- [TOML Configuration](toml) — multi-database, hot-reload, custom tools
+- [Command-Line Reference](command-line) — all CLI flags
+- [Debugging](debug) — diagnostics and troubleshooting
