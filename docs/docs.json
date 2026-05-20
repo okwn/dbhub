@@ -26,7 +26,8 @@
               "tools/overview",
               "tools/execute-sql",
               "tools/search-objects",
-              "tools/custom-tools"
+              "tools/custom-tools",
+              "tools/mcp-client"
             ]
           },
           {
@@ -35,7 +36,7 @@
           },
           {
             "group": "Configuration",
-            "pages": ["config/command-line", "config/toml", "config/debug"]
+            "pages": ["config/server-config", "config/command-line", "config/toml", "config/debug"]
           }
         ]
       },
