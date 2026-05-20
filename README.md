@@ -56,14 +56,107 @@ DBHub includes a [built-in web interface](https://dbhub.ai/workbench/overview) f
 
 ![workbench](https://raw.githubusercontent.com/bytebase/dbhub/main/docs/images/workbench/workbench.webp)
 
+## Quickstart
+
+Get DBHub running with demo mode in 30 seconds.
+
+### 1. Install
+
+**NPM:**
+```bash
+npm install -g @bytebase/dbhub@latest
+```
+
+**Docker:**
+```bash
+docker pull bytebase/dbhub:latest
+```
+
+**From Source:**
+```bash
+git clone https://github.com/bytebase/dbhub.git
+cd dbhub
+pnpm install && pnpm build
+```
+
+### 2. Start Demo Server
+
+DBHub demo mode includes a sample SQLite employee database.
+
+**NPM:**
+```bash
+npx @bytebase/dbhub@latest --transport http --port 8080 --demo
+```
+
+**Docker:**
+```bash
+docker run --rm -p 8080:8080 bytebase/dbhub --transport http --port 8080 --demo
+```
+
+**Expected Output:**
+```
+ _____  ____  _   _       _
+|  __ \|  _ \| | | |     | |
+| |  | | |_) | |_| |_   _| |__   _
+| |  | |  _ <|  _  | | | | '_ \ / _|
+| |__| | |_) | | | | |_| | |_) |  _|
+|____/|____/|_| |_|\__,_|_.__/ \___|
+v0.21.2 [DEMO] - Minimal Database MCP Server
+
+Workbench at http://localhost:8080/
+MCP server endpoint at http://localhost:8080/mcp
+```
+
+### 3. Try It Out
+
+**List tools:**
+```bash
+curl -s http://localhost:8080/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+**Execute a query:**
+```bash
+curl -s http://localhost:8080/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"execute_sql","arguments":{"sql":"SELECT * FROM employees LIMIT 5"}}}'
+```
+
+**Expected output:**
+```json
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"[{\"emp_no\":10001,\"birth_date\":\"1953-09-02\",\"first_name\":\"Georgi\",\"last_name\":\"Facello\",\"gender\":\"M\",\"hire_date\":\"1986-06-26\"},...]}"]}}
+```
+
+### 4. Connect to Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "dbhub": {
+      "command": "npx",
+      "args": ["@bytebase/dbhub@latest", "--transport", "stdio", "--demo"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop and try: *"What tables are in the demo database?"*
+
 ## Installation
 
 See the full [Installation Guide](https://dbhub.ai/installation) for detailed instructions.
 
-### Quick Start
+### Install Methods
+
+**NPM:**
+```bash
+npm install -g @bytebase/dbhub@latest
+```
 
 **Docker:**
-
 ```bash
 docker run --rm --init \
    --name dbhub \
@@ -71,17 +164,10 @@ docker run --rm --init \
    bytebase/dbhub \
    --transport http \
    --port 8080 \
-   --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
-```
-
-**NPM:**
-
-```bash
-npx @bytebase/dbhub@latest --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
+   --dsn "postgres://user:***@localhost:5432/dbname?sslmode=disable"
 ```
 
 **Demo Mode:**
-
 ```bash
 npx @bytebase/dbhub@latest --transport http --port 8080 --demo
 ```
