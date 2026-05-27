@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { setupManagerWithFixture, FIXTURES } from '../../__fixtures__/helpers.js';
 import type { ConnectorManager } from '../manager.js';
 
@@ -38,7 +38,7 @@ describe('Multiple SQLite Sources Integration Test (Issue #115)', () => {
     `, {});
   }, 30000);
 
-  afterAll(async () => {
+  after all(async () => {
     // Cleanup: disconnect from in-memory databases
     if (manager) {
       await manager.disconnect();

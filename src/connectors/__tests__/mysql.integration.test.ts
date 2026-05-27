@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { MySqlContainer, StartedMySqlContainer } from '@testcontainers/mysql';
 import { MySQLConnector } from '../mysql/index.js';
 import { IntegrationTestBase, type TestContainer, type DatabaseTestConfig } from './shared/integration-test-base.js';
@@ -160,7 +160,7 @@ describe('MySQL Connector Integration Tests', () => {
     await mysqlTest.setup();
   }, 120000);
 
-  afterAll(async () => {
+  after all(async () => {
     await mysqlTest.cleanup();
   });
 

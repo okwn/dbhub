@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, after all } from "vitest";
 import express, { Application } from "express";
 import { Server } from "http";
 import { requestStore, Request } from "../../requests/index.js";
@@ -38,7 +38,7 @@ describe("GET /api/requests - Integration Tests", () => {
     });
   }, 30000);
 
-  afterAll(async () => {
+  after all(async () => {
     // Cleanup
     if (server) {
       await new Promise<void>((resolve, reject) => {

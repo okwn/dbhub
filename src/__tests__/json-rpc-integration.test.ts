@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -98,7 +98,7 @@ describe('JSON RPC Integration Tests', () => {
     });
   }, 30000);
 
-  afterAll(async () => {
+  after all(async () => {
     // Kill the server process if it's still running
     if (serverProcess) {
       serverProcess.kill('SIGTERM');

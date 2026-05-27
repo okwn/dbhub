@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, after all, vi } from 'vitest';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgresConnector } from '../postgres/index.js';
 import { ConnectorManager } from '../manager.js';
@@ -33,7 +33,7 @@ describe('PostgreSQL SSH Tunnel Simple Integration Tests', () => {
       .start();
   }, 60000); // 1 minute timeout for container startup
 
-  afterAll(async () => {
+  after all(async () => {
     await postgresContainer?.stop();
   });
 

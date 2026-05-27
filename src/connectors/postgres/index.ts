@@ -166,7 +166,7 @@ export class PostgresConnector implements Connector {
   }
 
   async connect(dsn: string, initScript?: string, config?: ConnectorConfig): Promise<void> {
-    // Reset default schema in case this connector instance is re-used across connect() calls
+    // Reset default schema in case this connector instance is reused across connect() calls
     this.defaultSchema = "public";
 
     try {

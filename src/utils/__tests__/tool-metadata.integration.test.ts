@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, after all } from "vitest";
 import type { ConnectorManager } from "../../connectors/manager.js";
 import { setupManagerWithFixture, FIXTURES, loadFixtureConfig } from "../../__fixtures__/helpers.js";
 import { getExecuteSqlMetadata, getSearchObjectsMetadata } from "../tool-metadata.js";
@@ -20,7 +20,7 @@ describe("tool-metadata description propagation", () => {
     initializeToolRegistry({ sources, tools: tools || [] });
   }, 30000);
 
-  afterAll(async () => {
+  after all(async () => {
     if (manager) {
       await manager.disconnect();
     }

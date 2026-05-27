@@ -25,7 +25,7 @@ const BOX = {
   horizontal: "─",
   vertical: "│",
   leftT: "├",
-  rightT: "┤",
+  right: "┤",
   bullet: "•",
 };
 
@@ -150,7 +150,7 @@ export function generateStartupTable(sources: SourceDisplayInfo[]): string {
     );
 
     // Separator after header
-    lines.push(horizontalLine(totalWidth, BOX.leftT, BOX.rightT));
+    lines.push(horizontalLine(totalWidth, BOX.leftT, BOX.right));
 
     // Tool rows
     for (const tool of source.tools) {
@@ -164,7 +164,7 @@ export function generateStartupTable(sources: SourceDisplayInfo[]): string {
     if (isLast) {
       lines.push(horizontalLine(totalWidth, BOX.bottomLeft, BOX.bottomRight));
     } else {
-      lines.push(horizontalLine(totalWidth, BOX.leftT, BOX.rightT));
+      lines.push(horizontalLine(totalWidth, BOX.leftT, BOX.right));
     }
   }
 

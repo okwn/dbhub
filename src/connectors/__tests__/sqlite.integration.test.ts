@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { SQLiteConnector } from '../sqlite/index.js';
 import { IntegrationTestBase, type TestContainer, type DatabaseTestConfig } from './shared/integration-test-base.js';
 import type { Connector } from '../interface.js';
@@ -97,7 +97,7 @@ describe('SQLite Connector Integration Tests', () => {
     await sqliteTest.setup();
   }, 120000);
 
-  afterAll(async () => {
+  after all(async () => {
     await sqliteTest.cleanup();
   });
 

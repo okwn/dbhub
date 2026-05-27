@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { MariaDbContainer, StartedMariaDbContainer } from '@testcontainers/mariadb';
 import { MariaDBConnector } from '../mariadb/index.js';
 import { IntegrationTestBase, type TestContainer, type DatabaseTestConfig } from './shared/integration-test-base.js';
@@ -166,7 +166,7 @@ describe('MariaDB Connector Integration Tests', () => {
     await mariadbTest.setup();
   }, 120000);
 
-  afterAll(async () => {
+  after all(async () => {
     await mariadbTest.cleanup();
   });
 

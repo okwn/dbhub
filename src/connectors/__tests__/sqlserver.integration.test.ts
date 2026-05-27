@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { MSSQLServerContainer, StartedMSSQLServerContainer } from '@testcontainers/mssqlserver';
 import { SQLServerConnector } from '../sqlserver/index.js';
 import { IntegrationTestBase, type TestContainer, type DatabaseTestConfig } from './shared/integration-test-base.js';
@@ -168,7 +168,7 @@ describe('SQL Server Connector Integration Tests', () => {
     await sqlServerTest.setup();
   }, 300000); // 5 minutes timeout for SQL Server container
 
-  afterAll(async () => {
+  after all(async () => {
     await sqlServerTest.cleanup();
   });
 

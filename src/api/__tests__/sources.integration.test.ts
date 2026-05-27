@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import express, { Application } from 'express';
 import { setupManagerWithFixture, FIXTURES, loadFixtureConfig } from '../../__fixtures__/helpers.js';
 import type { ConnectorManager } from '../../connectors/manager.js';
@@ -46,7 +46,7 @@ describe('Data Sources API Integration Tests', () => {
     });
   }, 30000);
 
-  afterAll(async () => {
+  after all(async () => {
     // Cleanup
     if (server) {
       await new Promise<void>((resolve, reject) => {

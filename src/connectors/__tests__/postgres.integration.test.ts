@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgresConnector } from '../postgres/index.js';
 import { IntegrationTestBase, type TestContainer, type DatabaseTestConfig } from './shared/integration-test-base.js';
@@ -198,7 +198,7 @@ describe('PostgreSQL Connector Integration Tests', () => {
     await postgresTest.setup();
   }, 120000);
 
-  afterAll(async () => {
+  after all(async () => {
     await postgresTest.cleanup();
   });
 

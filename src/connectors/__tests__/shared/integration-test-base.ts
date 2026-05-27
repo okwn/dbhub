@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, after all } from 'vitest';
 import type { Connector } from '../../interface.js';
 
 export interface DatabaseTestConfig {
@@ -57,7 +57,7 @@ export abstract class IntegrationTestBase<TContainer extends TestContainer> {
   }
 
   /**
-   * Cleanup method to be called in afterAll
+   * Cleanup method to be called in after all
    */
   async cleanup(): Promise<void> {
     if (this.connector) {
@@ -77,7 +77,7 @@ export abstract class IntegrationTestBase<TContainer extends TestContainer> {
         await this.setup();
       }, 120000);
 
-      afterAll(async () => {
+      after all(async () => {
         await this.cleanup();
       });
 

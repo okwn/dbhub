@@ -66,7 +66,7 @@ This means the naming convention matters — integration tests MUST have `integr
 
 Database connector integration tests extend `IntegrationTestBase<TContainer>` from `src/connectors/__tests__/shared/integration-test-base.ts`. This abstract class provides:
 
-- **Lifecycle**: Container start in `beforeAll` (120s timeout) → connect → setup test data → run tests → cleanup in `afterAll`
+- **Lifecycle**: Container start in `beforeAll` (120s timeout) → connect → setup test data → run tests → cleanup in `after all`
 - **Shared test suites**: `createConnectionTests()`, `createSchemaTests()`, `createTableTests()`, `createSQLExecutionTests()`, `createStoredProcedureTests()`, `createCommentTests()`, `createErrorHandlingTests()`
 - **Standard test data**: `users` table (id, name, email, age) + `orders` table (id, user_id, amount) + `test_schema.products`
 
